@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, List
 from contextlib import asynccontextmanager
 from io import BytesIO
+from urllib.parse import quote
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
@@ -289,11 +290,12 @@ async def download_file(file_id: str, format: str = "docx"):
     else:
         raise HTTPException(status_code=400, detail="지원하지 않는 형식입니다. (docx 또는 txt)")
 
+    encoded_filename = quote(f"{filename}{extension}")
     return StreamingResponse(
         BytesIO(content),
         media_type=media_type,
         headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{filename}{extension}"
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
         }
     )
 
