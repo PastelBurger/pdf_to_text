@@ -25,10 +25,7 @@ from PIL import Image
 OCR_LANGUAGES = {
     "kor": "kor",
     "eng": "eng",
-    "chi_sim": "chi_sim",
-    "chi_tra": "chi_tra",
-    "jpn": "jpn",
-    "auto": "kor+eng+chi_sim+jpn"  # 자동 감지 시 모든 언어 사용
+    "auto": "kor+eng"  # 자동 감지 시 한국어+영어 사용
 }
 
 # 페이지 구분자
