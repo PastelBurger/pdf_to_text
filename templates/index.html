@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to Word/Text 변환기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .dropzone {
+            transition: all 0.3s ease;
+        }
+        .dropzone.dragover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .file-item {
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        .preview-text {
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- 헤더 -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">PDF to Word/Text 변환기</h1>
+            <p class="text-gray-600">특허 문서 PDF를 Word(.docx) 또는 텍스트(.txt) 파일로 변환합니다</p>
+            <p class="text-sm text-gray-500 mt-1">스캔본 PDF도 OCR로 처리 가능 (한국어/영어/중국어/일본어 지원)</p>
+        </header>
+
+        <!-- 업로드 영역 -->
+        <div id="uploadSection" class="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <form id="uploadForm">
+                <!-- 드래그앤드롭 영역 -->
+                <div id="dropzone" class="dropzone border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50">
+                    <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <p class="text-gray-600 mb-2">PDF 파일을 여기에 드래그하거나 클릭하여 선택하세요</p>
+                    <p class="text-sm text-gray-500">최대 50MB, 복수 파일 선택 가능</p>
+                    <input type="file" id="fileInput" accept=".pdf" multiple class="hidden">
+                </div>
+
+                <!-- 선택된 파일 목록 -->
+                <div id="fileList" class="mt-4 space-y-2 hidden">
+                    <h3 class="text-sm font-medium text-gray-700">선택된 파일:</h3>
+                    <div id="fileItems" class="space-y-2"></div>
+                </div>
+
+                <!-- 옵션 -->
+                <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- 출력 형식 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">출력 형식</label>
+                        <select id="outputFormat" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="both">Word + 텍스트 (둘 다)</option>
+                            <option value="docx">Word (.docx)</option>
+                            <option value="txt">텍스트 (.txt)</option>
+                        </select>
+                    </div>
+
+                    <!-- OCR 언어 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">OCR 언어 (스캔본용)</label>
+                        <select id="ocrLanguage" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="auto">자동 감지</option>
+                            <option value="kor">한국어</option>
+                            <option value="eng">영어</option>
+                            <option value="chi_sim">중국어 (간체)</option>
+                            <option value="chi_tra">중국어 (번체)</option>
+                            <option value="jpn">일본어</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 변환 버튼 -->
+                <button type="submit" id="convertBtn" disabled class="mt-6 w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">
+                    변환하기
+                </button>
+            </form>
+
+            <!-- 진행률 표시 -->
+            <div id="progressSection" class="hidden mt-6">
+                <div class="flex justify-between text-sm text-gray-600 mb-2">
+                    <span id="progressText">변환 중...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="progressBar" class="progress-bar bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 결과 영역 -->
+        <div id="resultSection" class="hidden">
+            <!-- 에러 메시지 -->
+            <div id="errorSection" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <h3 class="text-red-800 font-medium mb-2">처리 중 오류가 발생했습니다:</h3>
+                <ul id="errorList" class="text-red-700 text-sm space-y-1"></ul>
+            </div>
+
+            <!-- 성공 결과 -->
+            <div id="successSection" class="hidden">
+                <!-- 일괄 다운로드 -->
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div>
+                            <h3 class="text-green-800 font-medium">변환 완료!</h3>
+                            <p id="resultSummary" class="text-green-700 text-sm"></p>
+                            <p class="text-green-600 text-xs mt-1">파일은 10분 후 자동 삭제됩니다</p>
+                        </div>
+                        <button id="downloadAllBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                            전체 다운로드 (ZIP)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 개별 파일 목록 -->
+                <div id="convertedFiles" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <!-- 미리보기 모달 -->
+        <div id="previewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                <div class="flex justify-between items-center p-4 border-b">
+                    <h3 id="previewTitle" class="text-lg font-medium text-gray-800"></h3>
+                    <button id="closePreview" class="text-gray-500 hover:text-gray-700">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="flex-1 overflow-auto p-4">
+                    <pre id="previewContent" class="preview-text text-sm text-gray-700"></pre>
+                </div>
+                <div class="flex justify-between items-center p-4 border-t bg-gray-50">
+                    <div class="text-sm text-gray-600">
+                        <span id="previewInfo"></span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="loadMoreBtn" class="hidden px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">
+                            더 보기
+                        </button>
+                        <button id="copyTextBtn" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                            복사
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 푸터 -->
+        <footer class="text-center mt-8 text-gray-500 text-sm">
+            <p>PDF 처리: pdfplumber + PyPDF2 | OCR: Tesseract | Word 변환: python-docx</p>
+        </footer>
+    </div>
+
+    <script>
+        // 상태 관리
+        let selectedFiles = [];
+        let currentSessionId = null;
+        let currentPreviewFileId = null;
+
+        // DOM 요소
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const fileItems = document.getElementById('fileItems');
+        const uploadForm = document.getElementById('uploadForm');
+        const convertBtn = document.getElementById('convertBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const progressPercent = document.getElementById('progressPercent');
+        const resultSection = document.getElementById('resultSection');
+        const errorSection = document.getElementById('errorSection');
+        const errorList = document.getElementById('errorList');
+        const successSection = document.getElementById('successSection');
+        const resultSummary = document.getElementById('resultSummary');
+        const convertedFiles = document.getElementById('convertedFiles');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const previewModal = document.getElementById('previewModal');
+        const previewTitle = document.getElementById('previewTitle');
+        const previewContent = document.getElementById('previewContent');
+        const previewInfo = document.getElementById('previewInfo');
+        const closePreview = document.getElementById('closePreview');
+        const loadMoreBtn = document.getElementById('loadMoreBtn');
+        const copyTextBtn = document.getElementById('copyTextBtn');
+
+        // 드래그앤드롭 이벤트
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        dropzone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        // 파일 처리
+        function handleFiles(files) {
+            const pdfFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
+
+            if (pdfFiles.length === 0) {
+                alert('PDF 파일만 업로드 가능합니다.');
+                return;
+            }
+
+            // 크기 검사
+            const oversizedFiles = pdfFiles.filter(f => f.size > 50 * 1024 * 1024);
+            if (oversizedFiles.length > 0) {
+                alert(`다음 파일이 50MB를 초과합니다: ${oversizedFiles.map(f => f.name).join(', ')}`);
+                return;
+            }
+
+            selectedFiles = [...selectedFiles, ...pdfFiles];
+            updateFileList();
+        }
+
+        // 파일 목록 업데이트
+        function updateFileList() {
+            if (selectedFiles.length === 0) {
+                fileList.classList.add('hidden');
+                convertBtn.disabled = true;
+                return;
+            }
+
+            fileList.classList.remove('hidden');
+            convertBtn.disabled = false;
+            fileItems.innerHTML = '';
+
+            selectedFiles.forEach((file, index) => {
+                const item = document.createElement('div');
+                item.className = 'file-item flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2';
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="text-sm text-gray-700">${file.name}</span>
+                        <span class="text-xs text-gray-500">(${formatFileSize(file.size)})</span>
+                    </div>
+                    <button type="button" class="text-gray-400 hover:text-red-500" onclick="removeFile(${index})">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                `;
+                fileItems.appendChild(item);
+            });
+        }
+
+        // 파일 제거
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updateFileList();
+        }
+
+        // 파일 크기 포맷
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        // 폼 제출
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (selectedFiles.length === 0) return;
+
+            // UI 상태 변경
+            convertBtn.disabled = true;
+            progressSection.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+            updateProgress(0, '파일 업로드 중...');
+
+            // FormData 생성
+            const formData = new FormData();
+            selectedFiles.forEach(file => {
+                formData.append('files', file);
+            });
+            formData.append('output_format', document.getElementById('outputFormat').value);
+            formData.append('ocr_language', document.getElementById('ocrLanguage').value);
+
+            try {
+                // 업로드 진행률 시뮬레이션
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    if (progress < 90) {
+                        progress += Math.random() * 10;
+                        updateProgress(Math.min(progress, 90), '변환 중...');
+                    }
+                }, 500);
+
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                clearInterval(progressInterval);
+                updateProgress(100, '완료!');
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail?.errors?.[0]?.error || error.detail || '업로드 실패');
+                }
+
+                const result = await response.json();
+                showResults(result);
+
+            } catch (error) {
+                alert('오류: ' + error.message);
+                progressSection.classList.add('hidden');
+                convertBtn.disabled = false;
+            }
+        });
+
+        // 진행률 업데이트
+        function updateProgress(percent, text) {
+            progressBar.style.width = percent + '%';
+            progressPercent.textContent = Math.round(percent) + '%';
+            progressText.textContent = text;
+        }
+
+        // 결과 표시
+        function showResults(result) {
+            currentSessionId = result.session_id;
+            resultSection.classList.remove('hidden');
+            progressSection.classList.add('hidden');
+            convertBtn.disabled = false;
+
+            // 에러 표시
+            if (result.errors && result.errors.length > 0) {
+                errorSection.classList.remove('hidden');
+                errorList.innerHTML = result.errors.map(e =>
+                    `<li>${e.filename}: ${e.error}</li>`
+                ).join('');
+            } else {
+                errorSection.classList.add('hidden');
+            }
+
+            // 성공 결과 표시
+            if (result.results && result.results.length > 0) {
+                successSection.classList.remove('hidden');
+                resultSummary.textContent = `${result.total_files}개 파일 변환 완료`;
+
+                convertedFiles.innerHTML = result.results.map(file => `
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h4 class="font-medium text-gray-800">${file.filename}</h4>
+                                <p class="text-sm text-gray-500">${file.total_pages}페이지 | ${formatFileSize(file.text_length)} 텍스트</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="showPreview('${file.file_id}', '${file.filename}')" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+                                    미리보기
+                                </button>
+                                ${file.has_docx ? `
+                                    <a href="/download/${file.file_id}?format=docx" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
+                                        .docx
+                                    </a>
+                                ` : ''}
+                                ${file.has_txt ? `
+                                    <a href="/download/${file.file_id}?format=txt" class="px-3 py-1.5 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700 transition-colors">
+                                        .txt
+                                    </a>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                successSection.classList.add('hidden');
+            }
+
+            // 파일 선택 초기화
+            selectedFiles = [];
+            updateFileList();
+            fileInput.value = '';
+        }
+
+        // 전체 다운로드
+        downloadAllBtn.addEventListener('click', () => {
+            if (currentSessionId) {
+                window.location.href = `/download-all/${currentSessionId}`;
+            }
+        });
+
+        // 미리보기 표시
+        async function showPreview(fileId, filename) {
+            currentPreviewFileId = fileId;
+            previewTitle.textContent = filename;
+            previewContent.textContent = '로딩 중...';
+            previewModal.classList.remove('hidden');
+            loadMoreBtn.classList.add('hidden');
+
+            try {
+                const response = await fetch(`/preview/${fileId}`);
+                if (!response.ok) throw new Error('미리보기 로드 실패');
+
+                const data = await response.json();
+                previewContent.textContent = data.text;
+                previewInfo.textContent = `${data.total_pages}페이지 | ${formatFileSize(data.total_length)} 텍스트`;
+
+                if (data.has_more) {
+                    loadMoreBtn.classList.remove('hidden');
+                }
+            } catch (error) {
+                previewContent.textContent = '미리보기를 불러올 수 없습니다.';
+            }
+        }
+
+        // 더 보기
+        loadMoreBtn.addEventListener('click', async () => {
+            if (!currentPreviewFileId) return;
+
+            try {
+                const response = await fetch(`/preview/${currentPreviewFileId}?full=true`);
+                if (!response.ok) throw new Error('전체 텍스트 로드 실패');
+
+                const data = await response.json();
+                previewContent.textContent = data.text;
+                loadMoreBtn.classList.add('hidden');
+            } catch (error) {
+                alert('전체 텍스트를 불러올 수 없습니다.');
+            }
+        });
+
+        // 텍스트 복사
+        copyTextBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(previewContent.textContent);
+                const originalText = copyTextBtn.innerHTML;
+                copyTextBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> 복사됨';
+                setTimeout(() => {
+                    copyTextBtn.innerHTML = originalText;
+                }, 2000);
+            } catch (error) {
+                alert('복사에 실패했습니다.');
+            }
+        });
+
+        // 미리보기 닫기
+        closePreview.addEventListener('click', () => {
+            previewModal.classList.add('hidden');
+        });
+
+        previewModal.addEventListener('click', (e) => {
+            if (e.target === previewModal) {
+                previewModal.classList.add('hidden');
+            }
+        });
+
+        // ESC 키로 모달 닫기
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !previewModal.classList.contains('hidden')) {
+                previewModal.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
