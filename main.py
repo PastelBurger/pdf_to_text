@@ -5,7 +5,6 @@ PDF to Word/Text 변환 웹 앱 - FastAPI 메인 애플리케이션
 import os
 import uuid
 import asyncio
-import shutil
 import zipfile
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -13,9 +12,8 @@ from typing import Optional, Dict, List
 from contextlib import asynccontextmanager
 from io import BytesIO
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from pdf_processor import (
@@ -99,8 +97,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# 정적 파일 및 템플릿 설정
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# 템플릿 설정
 templates = Jinja2Templates(directory="templates")
 
 
