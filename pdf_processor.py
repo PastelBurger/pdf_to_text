@@ -36,6 +36,57 @@ TEMP_DIR = Path("temp")
 TEMP_DIR.mkdir(exist_ok=True)
 
 
+def clean_text(text: str) -> str:
+    """
+    추출된 텍스트 정리
+    - 연속 줄바꿈 제거
+    - 문장 중간 줄바꿈 연결
+    """
+    # 페이지 구분자 임시 보존
+    page_markers = re.findall(r'--- 페이지 \d+ ---', text)
+    text = re.sub(r'--- 페이지 (\d+) ---', r'<<<PAGE_\1>>>', text)
+
+    # 연속 줄바꿈을 단일 줄바꿈으로
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    # 문장 중간 줄바꿈 연결 (문장 종결 부호가 아닌 경우)
+    # 단, 페이지 마커 주변은 유지
+    lines = text.split('\n')
+    cleaned_lines = []
+
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if not line:
+            cleaned_lines.append('')
+            continue
+
+        # 페이지 마커는 그대로 유지
+        if re.match(r'<<<PAGE_\d+>>>', line):
+            cleaned_lines.append(line)
+            continue
+
+        # 이전 줄과 연결 가능한지 확인
+        if cleaned_lines and cleaned_lines[-1]:
+            prev_line = cleaned_lines[-1]
+            # 이전 줄이 페이지 마커가 아니고, 문장 종결 부호로 끝나지 않으면 연결
+            if not re.match(r'<<<PAGE_\d+>>>', prev_line):
+                if not re.search(r'[.!?。！？:：;\n]$', prev_line):
+                    cleaned_lines[-1] = prev_line + ' ' + line
+                    continue
+
+        cleaned_lines.append(line)
+
+    text = '\n'.join(cleaned_lines)
+
+    # 페이지 마커 복원
+    text = re.sub(r'<<<PAGE_(\d+)>>>', r'--- 페이지 \1 ---', text)
+
+    # 연속 공백 정리
+    text = re.sub(r' +', ' ', text)
+
+    return text.strip()
+
+
 class PDFProcessingError(Exception):
     """PDF 처리 관련 에러"""
     pass
@@ -203,6 +254,9 @@ async def process_pdf(
                 raise PDFProcessingError(
                     "텍스트를 추출할 수 없습니다. 이미지 PDF일 수 있습니다."
                 )
+
+    # 텍스트 정리 (줄바꿈 제거)
+    text = clean_text(text)
 
     return text, total_pages
 
