@@ -145,7 +145,7 @@ def extract_text_with_pdfplumber(pdf_path: str, progress_callback: Optional[Call
         for i, page in enumerate(pdf.pages):
             page_text = page.extract_text() or ""
             texts.append(PAGE_SEPARATOR.format(page_num=i+1) + page_text)
-            if progress_callback:
+            if progress_callback and callable(progress_callback):
                 progress_callback(i + 1, total_pages, "텍스트 추출 중")
 
     return "".join(texts), total_pages
@@ -160,7 +160,7 @@ def extract_text_with_pypdf2(pdf_path: str, progress_callback: Optional[Callable
     for i, page in enumerate(reader.pages):
         page_text = page.extract_text() or ""
         texts.append(PAGE_SEPARATOR.format(page_num=i+1) + page_text)
-        if progress_callback:
+        if progress_callback and callable(progress_callback):
             progress_callback(i + 1, total_pages, "텍스트 추출 중 (PyPDF2)")
 
     return "".join(texts), total_pages
@@ -184,7 +184,7 @@ def extract_text_with_ocr(
 
         # 페이지별로 처리 (메모리 절약)
         for page_num in range(1, total_pages + 1):
-            if progress_callback:
+            if progress_callback and callable(progress_callback):
                 progress_callback(page_num, total_pages, f"OCR 처리 중 (페이지 {page_num}/{total_pages})")
 
             # 단일 페이지만 변환
@@ -228,11 +228,11 @@ async def process_pdf(
     )
 
     # 추출된 텍스트가 너무 적으면 (페이지당 평균 100자 미만) 스캔본으로 판단
-    clean_text = re.sub(r'--- 페이지 \d+ ---', '', text).strip()
-    avg_chars_per_page = len(clean_text) / max(total_pages, 1)
+    stripped_text = re.sub(r'--- 페이지 \d+ ---', '', text).strip()
+    avg_chars_per_page = len(stripped_text) / max(total_pages, 1)
 
     if avg_chars_per_page < 100:
-        if progress_callback:
+        if progress_callback and callable(progress_callback):
             progress_callback(0, total_pages, "스캔본 PDF 감지됨, OCR 시작...")
 
         try:
@@ -242,7 +242,7 @@ async def process_pdf(
             )
         except Exception as ocr_error:
             # OCR 실패 시 PyPDF2로 최종 시도
-            if progress_callback:
+            if progress_callback and callable(progress_callback):
                 progress_callback(0, total_pages, "PyPDF2로 재시도 중...")
 
             try:
@@ -368,14 +368,14 @@ async def convert_pdf(
     base_name = os.path.splitext(clean_filename)[0]
 
     if output_format in ("docx", "both"):
-        if progress_callback:
+        if progress_callback and callable(progress_callback):
             progress_callback(total_pages, total_pages, "Word 문서 생성 중...")
         result["docx_buffer"] = await asyncio.to_thread(
             create_word_document, text, base_name
         )
 
     if output_format in ("txt", "both"):
-        if progress_callback:
+        if progress_callback and callable(progress_callback):
             progress_callback(total_pages, total_pages, "텍스트 파일 생성 중...")
         result["txt_buffer"] = await asyncio.to_thread(
             create_text_file, text
